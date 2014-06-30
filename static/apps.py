@@ -100,12 +100,15 @@ class Cling(object):
                 return self.moved_permanently(environ, start_response, headers)
             else:
                 full_path = self._full_path(path_info + self.index_file)
-        content_type = self._guess_type(full_path)
+        content_type, content_encoding = self._guess_type_and_encoding(full_path)
+        content_type =  content_type or 'text/plain'
         try:
             etag, last_modified = self._conditions(full_path, environ)
             headers = [('Date', formatdate(time.time())),
                        ('Last-Modified', last_modified),
                        ('ETag', etag)]
+            if content_encoding == 'gzip':
+                headers.append(('Content-Encoding', 'gzip'))
             if_modified = environ.get('HTTP_IF_MODIFIED_SINCE')
             if if_modified and (parsedate(if_modified)
                                 >= parsedate(last_modified)):
@@ -136,9 +139,10 @@ class Cling(object):
         else:
             return False
 
-    def _guess_type(self, full_path):
-        """Guess the mime type using the mimetypes module."""
-        return mimetypes.guess_type(full_path)[0] or 'text/plain'
+    def _guess_type_and_encoding(self, full_path):
+        """Guess the mime type and encoding using the mimetypes module."""
+        # Returns (type, encoding) tuple
+        return mimetypes.guess_type(full_path)
 
     def _conditions(self, full_path, environ):
         """Return a tuple of etag, last_modified by mtime from stat."""
